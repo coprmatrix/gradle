@@ -1,0 +1,69 @@
+# JDK 11
+
+sudo update-alternatives --config java
+sudo update-alternatives --config javac
+
+rm -rf /tmp/gradle*
+
+# update version in _service
+em _service
+
+# download src
+osc service mr
+
+# rename tarball
+mv v8.9.0.tar.gz gradle-8.9.0.tar.gz
+
+# prep build env
+mkdir build
+cd build
+unzip ../gradle-8.9-bin.zip
+tar xf ../gradle-8.9.0.tar.gz
+cp ../build.gradle gradle-8.9.0
+
+cd gradle-8.9.0
+rm -rf /tmp/gradle*
+export GRADLE_USER_HOME=/tmp/gradle
+export GRADLE_CACHE=/tmp/gradle-cache
+export BUILD_VCS_NUMBER=8.9.0
+export GRADLE_OPTS="-Xmx1024m"
+export YARN_CACHE_FOLDER=/tmp/gradle/yarn
+export LANG=en_US.UTF-8
+export JAVA_HOME=/usr/lib64/jvm/java-11-openjdk-11
+
+mkdir build
+mv ../../all build/all-released-versions.json
+
+patch -p1 < ../../../gradle/0001-*
+patch -p1 < ../../../gradle/0002-*
+
+# build
+#    --stacktrace --info --debug \
+#    --no-daemon \
+#    --no-parallel \
+
+../gradle-8.9/bin/gradle \
+    --gradle-user-home $GRADLE_USER_HOME \
+    --project-cache-dir $GRADLE_CACHE \
+    -Dfile.encoding=UTF-8 \
+    --project-prop finalRelease=true \
+    --project-prop org.gradle.java.installations.auto-detect=false \
+    --project-prop org.gradle.java.installations.auto-download=false \
+    --project-prop org.gradle.java.installations.fromEnv=JAVA_HOME \
+    --write-verification-metadata pgp,sha256 \
+    :distributions-full:binDistributionZip
+
+cp gradle/verification-metadata.xml ../..
+cp gradle/verification-keyring.keys ../..
+
+cd ../..
+
+# find /tmp/gradle -type d -exec chmod 755 {} \;
+# find /tmp/gradle -type f -exec chmod 644 {} \;
+
+# gradle cache can be shared
+#   https://docs.gradle.org/current/userguide/dependency_resolution.html#sub:shared-readonly-cache
+
+rm -rf /tmp/gradle/caches/modules-2/files-2.1/android-studio
+rm /tmp/gradle/caches/modules-2/modules-2.lock
+tar cf gradle-kit.tar -C /tmp gradle/caches/modules-2
